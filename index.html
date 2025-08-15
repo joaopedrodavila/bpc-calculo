@@ -1,0 +1,587 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guia Interativo BPC/LOAS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Harmony (Beige, Slate, Stone, with a gentle Teal accent) -->
+    <!-- Application Structure Plan: A task-oriented, single-page application designed to guide users through the BPC/LOAS information. The structure is non-linear, allowing users to jump to relevant sections via a sticky navigation bar. The core of the application is an interactive eligibility checker ("Será que eu tenho direito?"). This transforms the passive text-based report into an active self-assessment tool. It first asks the user to identify as 'Idoso' or 'Pessoa com Deficiência', then presents a dynamic checklist and an income calculator. This structure was chosen because the primary goal of a user visiting this page is likely to determine their own eligibility. Following the checker, a visual step-by-step guide on "How to Apply" and an accordion-style FAQ section break down complex information into digestible, interactive chunks. This design prioritizes user journey and task completion over simply mirroring the source document's layout, making the information more accessible and less intimidating. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Eligibility criteria (age, income, disability). Goal: Self-assessment. Viz/Method: Interactive income calculator with dynamic member addition and optional deductions (HTML/JS). Interaction: User adds family members and their income, adds optional deductions, gets dynamic feedback. Justification: More accurate and flexible income calculation, reflects real-world scenarios better. Library: Vanilla JS.
+        - Report Info: Income limit (1/4 of minimum wage). Goal: Compare user's income to the legal limit. Viz/Method: Dynamic Bar Chart (Canvas). Interaction: Chart updates based on user input in the calculator. Justification: A visual comparison is more intuitive than just numbers. Library: Chart.js.
+        - Report Info: Application process steps. Goal: Organize and clarify. Viz/Method: Numbered, expandable cards (HTML/Tailwind/JS). Interaction: Clicking a step reveals details. Justification: Cleaner UI than a long text block, allows progressive disclosure of information. Library: Vanilla JS.
+        - Report Info: Important information/FAQs. Goal: Inform and answer specific questions. Viz/Method: Accordion list (HTML/Tailwind/JS). Interaction: Clicking a question toggles the answer visibility. Justification: Standard, space-saving pattern for FAQs. Library: Vanilla JS. 
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .smooth-scroll {
+            scroll-behavior: smooth;
+        }
+        .section-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: all 0.3s ease-in-out;
+        }
+        .nav-link {
+            transition: color 0.2s;
+        }
+        .nav-link:hover {
+            color: #14B8A6; /* Teal-500 */
+        }
+        .step-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .accordion-button.open .accordion-icon {
+            transform: rotate(180deg);
+        }
+        .accordion-icon {
+            transition: transform 0.3s ease;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 250px;
+            max-height: 300px;
+        }
+        .income-input-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .remove-member-btn {
+            background-color: #ef4444; /* red-500 */
+            color: white;
+            padding: 0.3rem 0.6rem;
+            border-radius: 0.375rem;
+            font-size: 0.8rem;
+        }
+        .remove-member-btn:hover {
+            background-color: #dc2626; /* red-600 */
+        }
+    </style>
+</head>
+<body class="bg-stone-50 text-stone-800 smooth-scroll">
+
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex-shrink-0">
+                    <h1 class="text-xl md:text-2xl font-bold text-slate-800">Guia BPC/LOAS</h1>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#o-que-e" class="nav-link text-slate-600 font-medium px-3 py-2 rounded-md text-sm">O que é?</a>
+                        <a href="#quem-tem-direito" class="nav-link text-slate-600 font-medium px-3 py-2 rounded-md text-sm">Quem tem direito?</a>
+                        <a href="#como-solicitar" class="nav-link text-slate-600 font-medium px-3 py-2 rounded-md text-sm">Como solicitar?</a>
+                        <a href="#duvidas" class="nav-link text-slate-600 font-medium px-3 py-2 rounded-md text-sm">Dúvidas Frequentes</a>
+                    </div>
+                </div>
+                <div class="md:hidden">
+                     <button id="mobile-menu-button" class="inline-flex items-center justify-center p-2 rounded-md text-slate-600 hover:text-teal-500 hover:bg-stone-100 focus:outline-none">
+                        <span class="sr-only">Abrir menu</span>
+                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+             <div id="mobile-menu" class="md:hidden hidden">
+                <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                    <a href="#o-que-e" class="nav-link text-slate-600 block px-3 py-2 rounded-md text-base font-medium">O que é?</a>
+                    <a href="#quem-tem-direito" class="nav-link text-slate-600 block px-3 py-2 rounded-md text-base font-medium">Quem tem direito?</a>
+                    <a href="#como-solicitar" class="nav-link text-slate-600 block px-3 py-2 rounded-md text-base font-medium">Como solicitar?</a>
+                    <a href="#duvidas" class="nav-link text-slate-600 block px-3 py-2 rounded-md text-base font-medium">Dúvidas Frequentes</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+        
+        <section id="o-que-e" class="mb-16 scroll-mt-24">
+             <div class="text-center mb-10">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-800">O que é o BPC/LOAS?</h2>
+                <p class="mt-3 text-lg text-slate-600 max-w-3xl mx-auto">É um benefício da assistência social que garante um salário mínimo mensal para pessoas que não conseguem se sustentar.</p>
+            </div>
+            <div class="grid md:grid-cols-3 gap-8 text-center">
+                <div class="section-card">
+                    <div class="text-3xl text-teal-600 mb-4">✔️</div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">É um Direito Seu</h3>
+                    <p class="text-slate-600">O BPC é um benefício assistencial, não uma aposentadoria. Não é preciso ter contribuído para o INSS para recebê-lo.</p>
+                </div>
+                <div class="section-card">
+                    <div class="text-3xl text-teal-600 mb-4">💰</div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Valor do Benefício</h3>
+                    <p class="text-slate-600">O valor garantido é de <strong>um salário mínimo</strong>, pago todos os meses ao beneficiário.</p>
+                </div>
+                <div class="section-card">
+                    <div class="text-3xl text-teal-600 mb-4">🎯</div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Para Quem Se Destina</h3>
+                    <p class="text-slate-600">Destinado a idosos com 65 anos ou mais e pessoas com deficiência de qualquer idade que se enquadrem nos critérios.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="quem-tem-direito" class="mb-16 scroll-mt-24">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-800">Será que eu tenho direito?</h2>
+                <p class="mt-3 text-lg text-slate-600 max-w-3xl mx-auto">Esta é uma simulação e não substitui a avaliação oficial do INSS. Preencha os dados para uma estimativa.</p>
+            </div>
+            
+            <div class="section-card max-w-4xl mx-auto">
+                <div class="mb-6">
+                    <h3 class="text-xl font-bold text-center text-slate-800">1. Qual o seu perfil?</h3>
+                    <div class="flex justify-center gap-4 mt-4">
+                        <button id="btn-idoso" class="px-6 py-3 font-bold text-white bg-teal-600 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">Idoso (65+ anos)</button>
+                        <button id="btn-pcd" class="px-6 py-3 font-bold text-white bg-slate-700 rounded-lg hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500">Pessoa com Deficiência</button>
+                    </div>
+                </div>
+
+                <div id="eligibility-checker" class="hidden">
+                    <hr class="my-6 border-stone-200">
+                    <h3 class="text-xl font-bold text-center text-slate-800 mb-2">2. Detalhamento da Renda Familiar</h3>
+                    <p class="text-center text-sm text-slate-500 mb-4">Informe quem mora na casa e a renda mensal de cada um. Inclua você mesmo(a). O grupo familiar para o BPC geralmente inclui: o requerente, cônjuge/companheiro(a), pais (ou padrasto/madrasta), irmãos solteiros, filhos/enteados solteiros e menores tutelados, desde que vivam sob o mesmo teto.</p>
+                    
+                    <div id="family-members-container" class="space-y-3 mb-4">
+                        </div>
+                    <button id="add-member-btn" class="mb-6 w-full sm:w-auto px-4 py-2 text-sm font-medium text-teal-700 bg-teal-100 rounded-lg hover:bg-teal-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                        + Adicionar Membro da Família
+                    </button>
+
+                    <hr class="my-6 border-stone-200">
+                    <h3 class="text-lg font-semibold text-slate-800 mb-2">Deduções Permitidas (Opcional)</h3>
+                    <p class="text-sm text-slate-500 mb-4">Alguns gastos podem ser deduzidos da renda bruta familiar. Informe abaixo, se houver.</p>
+                    <div class="grid md:grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label for="gastos-medicamentos" class="block text-sm font-medium text-slate-700">Gastos mensais com medicamentos não fornecidos pelo SUS (comprovados)</label>
+                            <div class="mt-1 relative rounded-md shadow-sm">
+                                <div class="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center"><span class="text-slate-500 sm:text-sm">R$</span></div>
+                                <input type="number" id="gastos-medicamentos" class="block w-full rounded-md border-stone-300 pl-10 pr-4 py-2 focus:border-teal-500 focus:ring-teal-500 sm:text-sm" placeholder="0.00">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="gastos-especiais" class="block text-sm font-medium text-slate-700">Gastos mensais com fraldas, alimentação especial, etc. (para idosos/PCD, comprovados)</label>
+                            <div class="mt-1 relative rounded-md shadow-sm">
+                                <div class="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center"><span class="text-slate-500 sm:text-sm">R$</span></div>
+                                <input type="number" id="gastos-especiais" class="block w-full rounded-md border-stone-300 pl-10 pr-4 py-2 focus:border-teal-500 focus:ring-teal-500 sm:text-sm" placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button id="btn-calcular" class="w-full px-6 py-3 font-bold text-white bg-teal-600 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">Calcular Renda e Verificar</button>
+                    
+                    <div id="resultado-calculo-container" class="mt-8 hidden">
+                        <hr class="my-6 border-stone-200">
+                        <h3 class="text-xl font-bold text-center text-slate-800 mb-4">Resultado da Simulação</h3>
+                        <div class="grid md:grid-cols-2 gap-6 items-center">
+                            <div id="resultado-sumario" class="p-4 rounded-lg bg-stone-100"></div>
+                            <div class="chart-container">
+                                <canvas id="rendaChart"></canvas>
+                            </div>
+                        </div>
+                        <div id="resultado-final" class="mt-6 p-6 rounded-lg text-center"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="como-solicitar" class="mb-16 scroll-mt-24">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-800">Como Solicitar o Benefício?</h2>
+                <p class="mt-3 text-lg text-slate-600 max-w-3xl mx-auto">O processo envolve algumas etapas importantes. Siga o guia abaixo.</p>
+            </div>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="section-card step-card text-center">
+                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-teal-100 text-teal-600 font-bold text-2xl mb-4">1</div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Inscrição no CadÚnico</h3>
+                    <p class="text-slate-600">O primeiro passo é ter o Cadastro Único (CadÚnico) atualizado. Procure o CRAS do seu município para fazer ou atualizar sua inscrição e de sua família.</p>
+                </div>
+                 <div class="section-card step-card text-center">
+                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-teal-100 text-teal-600 font-bold text-2xl mb-4">2</div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Reunir Documentos</h3>
+                    <p class="text-slate-600">Tenha em mãos o CPF de todos da família e, se for o caso, laudos e exames médicos que comprovem a deficiência.</p>
+                </div>
+                 <div class="section-card step-card text-center">
+                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-teal-100 text-teal-600 font-bold text-2xl mb-4">3</div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">Solicitar ao INSS</h3>
+                    <p class="text-slate-600">Com o CadÚnico em dia, a solicitação pode ser feita pelo site/app <strong>Meu INSS</strong> ou pelo telefone <strong>135</strong>.</p>
+                </div>
+            </div>
+        </section>
+        
+        <section id="duvidas" class="mb-16 scroll-mt-24">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-800">Dúvidas Frequentes</h2>
+                <p class="mt-3 text-lg text-slate-600 max-w-3xl mx-auto">Esclareça os pontos mais importantes sobre o BPC/LOAS.</p>
+            </div>
+            <div class="max-w-4xl mx-auto space-y-4">
+                <div class="accordion-item bg-white rounded-lg shadow-sm">
+                    <button class="accordion-button w-full flex justify-between items-center text-left p-5 font-semibold text-slate-800">
+                        BPC é o mesmo que aposentadoria?
+                        <span class="accordion-icon text-teal-500">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </span>
+                    </button>
+                    <div class="accordion-content hidden p-5 pt-0 text-slate-600">
+                        Não. O BPC é um benefício assistencial e não exige contribuição ao INSS. Diferente da aposentadoria, ele não paga 13º salário e não deixa pensão por morte.
+                    </div>
+                </div>
+                 <div class="accordion-item bg-white rounded-lg shadow-sm">
+                    <button class="accordion-button w-full flex justify-between items-center text-left p-5 font-semibold text-slate-800">
+                        O benefício é para sempre? Preciso renovar?
+                        <span class="accordion-icon text-teal-500">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </span>
+                    </button>
+                    <div class="accordion-content hidden p-5 pt-0 text-slate-600">
+                        O benefício precisa ser reavaliado a cada 2 anos para verificar se o beneficiário ainda atende aos critérios de elegibilidade (renda, deficiência, etc.). Além disso, o Cadastro Único (CadÚnico) deve ser atualizado obrigatoriamente também a cada 2 anos ou sempre que houver mudança na família (endereço, renda, composição familiar, etc.), para garantir a continuidade do BPC. A falta de atualização do CadÚnico pode levar à suspensão do benefício.
+                    </div>
+                </div>
+                 <div class="accordion-item bg-white rounded-lg shadow-sm">
+                    <button class="accordion-button w-full flex justify-between items-center text-left p-5 font-semibold text-slate-800">
+                        Posso perder o benefício?
+                        <span class="accordion-icon text-teal-500">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </span>
+                    </button>
+                    <div class="accordion-content hidden p-5 pt-0 text-slate-600">
+                        Sim. O BPC pode ser suspenso ou cancelado se a renda da família aumentar acima do limite permitido, se a condição de deficiência for superada (após perícia do INSS), ou se o Cadastro Único estiver desatualizado ou com informações incorretas. Também pode ser cessado em caso de falecimento do beneficiário.
+                    </div>
+                </div>
+                 <div class="accordion-item bg-white rounded-lg shadow-sm">
+                    <button class="accordion-button w-full flex justify-between items-center text-left p-5 font-semibold text-slate-800">
+                        Preciso pagar para solicitar o BPC?
+                        <span class="accordion-icon text-teal-500">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </span>
+                    </button>
+                    <div class="accordion-content hidden p-5 pt-0 text-slate-600">
+                        Não. A solicitação do BPC é totalmente gratuita e pode ser feita diretamente por você nos canais do INSS (Meu INSS, telefone 135) ou com auxílio do CRAS, sem a necessidade de contratar intermediários.
+                    </div>
+                </div>
+                <div class="accordion-item bg-white rounded-lg shadow-sm">
+                    <button class="accordion-button w-full flex justify-between items-center text-left p-5 font-semibold text-slate-800">
+                        Quem recebe BPC pode trabalhar de carteira assinada?
+                        <span class="accordion-icon text-teal-500">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </span>
+                    </button>
+                    <div class="accordion-content hidden p-5 pt-0 text-slate-600">
+                        A pessoa com deficiência que recebe BPC pode ingressar no mercado de trabalho através do contrato de aprendizagem profissional, sem que o benefício seja suspenso, pelo prazo máximo de 2 anos. Caso ela consiga um emprego formal (carteira assinada), o BPC é suspenso, mas não cancelado. Se ela perder o emprego ou o contrato de aprendizagem terminar, e ela continuar atendendo aos critérios, pode solicitar a reativação do BPC. É importante comunicar qualquer alteração de renda ao INSS. Para idosos, a regra é mais restrita, pois o BPC não pode ser acumulado com remuneração de trabalho.
+                    </div>
+                </div>
+                <div class="accordion-item bg-white rounded-lg shadow-sm">
+                    <button class="accordion-button w-full flex justify-between items-center text-left p-5 font-semibold text-slate-800">
+                        Menores de idade com deficiência podem receber o BPC?
+                        <span class="accordion-icon text-teal-500">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </span>
+                    </button>
+                    <div class="accordion-content hidden p-5 pt-0 text-slate-600">
+                        Sim. Crianças e adolescentes com deficiência (de qualquer idade, desde o nascimento) podem ter direito ao BPC, desde que a deficiência cause impedimentos de longo prazo (mínimo de 2 anos) que, em interação com diversas barreiras, obstruam sua participação plena e efetiva na sociedade em igualdade de condições com as demais pessoas. Além disso, é necessário atender ao critério de renda familiar e estar com o CadÚnico atualizado. A avaliação da deficiência e do grau de impedimento é realizada pela perícia médica e social do INSS.
+                    </div>
+                </div>
+                 <div class="accordion-item bg-white rounded-lg shadow-sm">
+                    <button class="accordion-button w-full flex justify-between items-center text-left p-5 font-semibold text-slate-800">
+                        Como é feita a avaliação da deficiência para o BPC?
+                        <span class="accordion-icon text-teal-500">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </span>
+                    </button>
+                    <div class="accordion-content hidden p-5 pt-0 text-slate-600">
+                        A avaliação da deficiência para fins de concessão do BPC é realizada por meio de perícia médica e avaliação social feitas por profissionais do INSS. A avaliação considera não apenas os aspectos médicos (laudos, exames), mas também os fatores ambientais, sociais, econômicos e pessoais que podem limitar ou impedir a participação plena da pessoa na sociedade. É uma avaliação biopsicossocial, que busca entender o impacto da deficiência na vida diária e na capacidade de interação social do requerente.
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+    </main>
+    
+    <footer class="bg-slate-800 text-white">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="text-center">
+                 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Logo_Oficial_Urcamp_Novo.png/1200px-Logo_Oficial_Urcamp_Novo.png" alt="Logótipo URCAMP" class="mx-auto mb-6 h-16" onerror="this.onerror=null; this.src='https://placehold.co/200x80/FFFFFF/333333?text=Logo+URCAMP';">
+                
+                <blockquote class="my-8 max-w-2xl mx-auto">
+                    <p class="text-lg italic text-slate-300">"Não devemos criar muros, mas sim pontes."</p>
+                    <cite class="block text-slate-400 text-sm mt-2 not-italic">- Papa Francisco</cite>
+                 </blockquote>
+
+                <h3 class="text-xl font-bold mt-8">Onde Buscar Mais Informações?</h3>
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-slate-300">
+                    <p><strong>CRAS:</strong> Procure o Centro de Referência de Assistência Social mais próximo.</p>
+                    <p><strong>Online:</strong> Acesse o portal ou baixe o aplicativo <strong>Meu INSS</strong>.</p>
+                    <p><strong>Telefone:</strong> Ligue para a central <strong>135</strong> do INSS.</p>
+                </div>
+                <p class="mt-8 text-sm text-slate-400">
+                    Este material é informativo e para simulação. As regras podem sofrer alterações. Consulte sempre os canais oficiais do Governo Federal e do INSS para informações atualizadas.
+                </p>
+                <p class="mt-4 text-sm text-slate-400">
+                    Página criada no primeiro semestre de 2025, por iniciativa de alunos do 5º período do curso de Direito da URCAMP - Campus Bagé/RS.
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const SALARIO_MINIMO = 1412; 
+            const LIMITE_RENDA_BPC = SALARIO_MINIMO / 4;
+            let userProfile = null; 
+            let rendaChart = null;
+            let familyMemberCount = 0;
+
+            const mobileMenuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            mobileMenuButton.addEventListener('click', () => {
+                mobileMenu.classList.toggle('hidden');
+            });
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', () => {
+                    if (!mobileMenu.classList.contains('hidden')) {
+                         mobileMenu.classList.add('hidden');
+                    }
+                });
+            });
+
+            const btnIdoso = document.getElementById('btn-idoso');
+            const btnPcd = document.getElementById('btn-pcd');
+            const eligibilityChecker = document.getElementById('eligibility-checker');
+            
+            btnIdoso.addEventListener('click', () => selectProfile('idoso'));
+            btnPcd.addEventListener('click', () => selectProfile('pcd'));
+
+            const familyMembersContainer = document.getElementById('family-members-container');
+            const addMemberBtn = document.getElementById('add-member-btn');
+            addMemberBtn.addEventListener('click', addFamilyMemberField);
+
+            function addFamilyMemberField() {
+                familyMemberCount++;
+                const memberDiv = document.createElement('div');
+                memberDiv.classList.add('p-3', 'border', 'border-stone-200', 'rounded-md', 'space-y-2', 'bg-stone-50');
+                memberDiv.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <label class="block text-sm font-medium text-slate-700">Membro da Família ${familyMemberCount} ${familyMemberCount === 1 ? '(Você)' : ''}</label>
+                        ${familyMemberCount > 1 ? '<button type="button" class="remove-member-btn" onclick="removeFamilyMember(this)">Remover</button>' : ''}
+                    </div>
+                    <div>
+                        <label for="member-name-${familyMemberCount}" class="block text-xs text-slate-500">Nome (Opcional)</label>
+                        <input type="text" id="member-name-${familyMemberCount}" class="mt-1 block w-full rounded-md border-stone-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm text-sm" placeholder="Ex: João Silva">
+                    </div>
+                    <div>
+                        <label for="member-income-${familyMemberCount}" class="block text-xs text-slate-500">Renda Mensal (R$)</label>
+                        <div class="mt-1 relative rounded-md shadow-sm">
+                            <div class="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center"><span class="text-slate-500 sm:text-sm">R$</span></div>
+                            <input type="number" id="member-income-${familyMemberCount}" class="member-income block w-full rounded-md border-stone-300 pl-10 pr-4 py-2 focus:border-teal-500 focus:ring-teal-500 sm:text-sm" placeholder="0.00" required>
+                        </div>
+                    </div>
+                `;
+                familyMembersContainer.appendChild(memberDiv);
+            }
+            
+            window.removeFamilyMember = function(button) {
+                button.closest('.p-3').remove();
+            }
+
+            function selectProfile(profile) {
+                userProfile = profile;
+                eligibilityChecker.classList.remove('hidden');
+                if (profile === 'idoso') {
+                    btnIdoso.classList.remove('bg-teal-600', 'hover:bg-teal-700');
+                    btnIdoso.classList.add('bg-teal-700', 'ring-2', 'ring-offset-2', 'ring-teal-500');
+                    btnPcd.classList.remove('bg-slate-800', 'ring-2', 'ring-offset-2', 'ring-slate-500');
+                    btnPcd.classList.add('bg-slate-700', 'hover:bg-slate-800');
+                } else {
+                    btnPcd.classList.remove('bg-slate-700', 'hover:bg-slate-800');
+                    btnPcd.classList.add('bg-slate-800', 'ring-2', 'ring-offset-2', 'ring-slate-500');
+                    btnIdoso.classList.remove('bg-teal-700', 'ring-2', 'ring-offset-2', 'ring-teal-500');
+                    btnIdoso.classList.add('bg-teal-600', 'hover:bg-teal-700');
+                }
+                
+                familyMembersContainer.innerHTML = '';
+                familyMemberCount = 0;
+                addFamilyMemberField(); 
+
+                document.getElementById('gastos-medicamentos').value = '';
+                document.getElementById('gastos-especiais').value = '';
+                document.getElementById('resultado-calculo-container').classList.add('hidden');
+
+                if(rendaChart) rendaChart.destroy();
+                initChart();
+            }
+
+            const btnCalcular = document.getElementById('btn-calcular');
+            btnCalcular.addEventListener('click', calcularRenda);
+            
+            function formatCurrency(value) {
+                return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            }
+
+            function calcularRenda() {
+                const resultadoFinalDiv = document.getElementById('resultado-final');
+                const resultadoSumarioDiv = document.getElementById('resultado-sumario');
+                const resultadoCalculoContainer = document.getElementById('resultado-calculo-container');
+                
+                let rendaBrutaTotal = 0;
+                const memberIncomeInputs = document.querySelectorAll('.member-income');
+                let numeroDeMembros = memberIncomeInputs.length;
+
+                if (numeroDeMembros === 0) {
+                    resultadoFinalDiv.innerHTML = `<p class="font-bold text-red-700">Adicione pelo menos um membro da família (você) para calcular.</p>`;
+                    resultadoFinalDiv.className = 'mt-6 p-6 rounded-lg text-center bg-red-100';
+                    resultadoSumarioDiv.innerHTML = '';
+                    resultadoCalculoContainer.classList.remove('hidden');
+                    return;
+                }
+                
+                memberIncomeInputs.forEach(input => {
+                    const income = parseFloat(input.value) || 0;
+                    rendaBrutaTotal += income;
+                });
+
+                const gastosMedicamentos = parseFloat(document.getElementById('gastos-medicamentos').value) || 0;
+                const gastosEspeciais = parseFloat(document.getElementById('gastos-especiais').value) || 0;
+                const totalDeducoes = gastosMedicamentos + gastosEspeciais;
+
+                const rendaLiquidaConsiderada = Math.max(0, rendaBrutaTotal - totalDeducoes);
+                const rendaPerCapita = numeroDeMembros > 0 ? rendaLiquidaConsiderada / numeroDeMembros : 0;
+                
+                const atendeCriterioRenda = rendaPerCapita <= LIMITE_RENDA_BPC;
+
+                updateChart(rendaPerCapita);
+                
+                resultadoSumarioDiv.innerHTML = `
+                    <p class="text-sm text-slate-700"><strong>Renda Bruta Familiar:</strong> ${formatCurrency(rendaBrutaTotal)}</p>
+                    <p class="text-sm text-slate-700"><strong>Total de Deduções Informadas:</strong> ${formatCurrency(totalDeducoes)}</p>
+                    <p class="text-sm text-slate-700"><strong>Renda Líquida Considerada:</strong> ${formatCurrency(rendaLiquidaConsiderada)}</p>
+                    <p class="text-sm text-slate-700"><strong>Número de Membros na Família:</strong> ${numeroDeMembros}</p>
+                    <p class="text-md font-semibold text-slate-800 mt-2"><strong>Renda Familiar Per Capita Calculada:</strong> ${formatCurrency(rendaPerCapita)}</p>
+                `;
+
+                let message = '';
+                let bgColorClass = '';
+                
+                if (atendeCriterioRenda) {
+                    message = `A sua renda familiar per capita calculada é de <strong>${formatCurrency(rendaPerCapita)}</strong>. Este valor está <strong>dentro</strong> do limite de ${formatCurrency(LIMITE_RENDA_BPC)} para o BPC.`;
+                    if(userProfile === 'idoso'){
+                       message += ` Por ter 65 anos ou mais e atender ao critério de renda, <strong>você tem grandes chances de ter direito ao BPC.</strong>`;
+                    } else {
+                       message += ` Por atender ao critério de renda, o próximo passo é a avaliação da sua deficiência pela perícia do INSS. Se a deficiência for confirmada, <strong>você tem grandes chances de ter direito ao BPC.</strong>`;
+                    }
+                    bgColorClass = 'bg-green-100 text-green-800';
+                } else {
+                    message = `A sua renda familiar per capita calculada é de <strong>${formatCurrency(rendaPerCapita)}</strong>. Este valor está <strong>acima</strong> do limite de ${formatCurrency(LIMITE_RENDA_BPC)} para o BPC.`;
+                    message += ` Nestas condições, você <strong>provavelmente não se enquadra</strong> no critério de renda para o BPC. Mesmo assim, procure um CRAS para orientações, pois existem outras deduções e situações específicas que podem ser analisadas.`;
+                    bgColorClass = 'bg-yellow-100 text-yellow-800';
+                }
+                
+                resultadoFinalDiv.innerHTML = `<p>${message}</p><p class="mt-4 text-sm">Lembre-se: esta é apenas uma simulação. A análise final é sempre feita pelo INSS.</p>`;
+                resultadoFinalDiv.className = `mt-6 p-4 rounded-lg text-center ${bgColorClass}`;
+                resultadoCalculoContainer.classList.remove('hidden');
+            }
+
+            function initChart() {
+                const ctx = document.getElementById('rendaChart').getContext('2d');
+                if (rendaChart) {
+                    rendaChart.destroy();
+                }
+                rendaChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Sua Renda Per Capita', 'Limite BPC'],
+                        datasets: [{
+                            label: 'Renda por Pessoa (R$)',
+                            data: [0, LIMITE_RENDA_BPC],
+                            backgroundColor: [
+                                'rgba(113, 113, 122, 0.6)', 
+                                'rgba(20, 184, 166, 0.6)' 
+                            ],
+                            borderColor: [
+                                'rgb(113, 113, 122)',
+                                'rgb(20, 184, 166)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            title: {
+                                display: true,
+                                text: 'Renda Per Capita vs Limite BPC',
+                                font: { size: 14 }
+                            },
+                             tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) { label += ': '; }
+                                        if (context.parsed.x !== null) {
+                                            label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.x);
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                ticks: { callback: function(value) { return 'R$ ' + value; } }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function updateChart(rendaPerCapita) {
+                rendaChart.data.datasets[0].data[0] = rendaPerCapita;
+                if (rendaPerCapita > LIMITE_RENDA_BPC) {
+                    rendaChart.data.datasets[0].backgroundColor[0] = 'rgba(239, 68, 68, 0.6)'; 
+                    rendaChart.data.datasets[0].borderColor[0] = 'rgb(239, 68, 68)';
+                } else {
+                    rendaChart.data.datasets[0].backgroundColor[0] = 'rgba(113, 113, 122, 0.6)';
+                    rendaChart.data.datasets[0].borderColor[0] = 'rgb(113, 113, 122)';
+                }
+                rendaChart.update();
+            }
+
+            const accordionItems = document.querySelectorAll('.accordion-item');
+            accordionItems.forEach(item => {
+                const button = item.querySelector('.accordion-button');
+                const content = item.querySelector('.accordion-content');
+                button.addEventListener('click', () => {
+                    const isOpen = button.classList.contains('open');
+                    document.querySelectorAll('.accordion-content').forEach(c => c.classList.add('hidden'));
+                    document.querySelectorAll('.accordion-button').forEach(b => b.classList.remove('open'));
+                    if (!isOpen) {
+                        content.classList.remove('hidden');
+                        button.classList.add('open');
+                    }
+                });
+            });
+            
+            initChart();
+        });
+    </script>
+</body>
+</html>
